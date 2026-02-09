@@ -5,7 +5,6 @@ addon.desc      = [[/bgm to open a GUI to manage music]]
 addon.link    = '';
 
 require('common');
-local ffxi_time = require('ffxi.time');
 local imgui = require('imgui');
 local chat = require('chat');
 local ffi = require('ffi');
@@ -14,96 +13,7 @@ local manager_settings = require('settings');
 local manager_packet = AshitaCore:GetPacketManager();
 local manager_party = AshitaCore:GetMemoryManager():GetParty();
 
-local startedInMoghouse = nil;
-local startIsDaytime = nil;
-
----@class settings_default
----@field music_0_day             number Music ID during day, non-combat, non-mounted
----@field music_1_night           number Music ID during night, non-combat, non-mounted
----@field music_2_solo            number Music ID during combat, solo
----@field music_3_party           number Music ID during combat, party
----@field music_4_mount           number Music ID while mounted
----@field music_5_dead            number Music ID while dead.
----@field music_6_mog_house       number Music ID while in mog house.
----@field music_7_fishing         number Music ID while fishing.
----@field volume_bgm_config     number Config setting of BGM Volume (0-100)
----@field volume_sfx_config     number Config setting of SFX Volume (0-100)
-local settings_default = T{
-    music_0_day       = -1,
-    music_1_night     = -1,
-    music_2_solo      = -1,
-    music_3_party     = -1,
-    music_4_mount     = -1,
-    music_5_dead      = -1,
-    music_6_mog_house = -1,
-    music_7_fishing   = -1,
-
-    overrideMoghouse = false,
-    overrideDeath = false,
-    overrideFishing = false,
-    overrideNight = false,
-
-    volume_bgm_config = 50,
-    volume_sfx_config = 50,
-};
-
----@class settings_current: settings_default
-local settings_current = T{
-};
-
---region config_volume_functions
-    local config = T{
-        get     = nil,
-        set     = nil,
-    };
-
-    ffi.cdef[[
-        typedef int32_t (__cdecl* get_config_value_t)(int32_t);
-        typedef int32_t (__cdecl* set_config_value_t)(int32_t, int32_t);
-    ]];
-
-    local function GetVolumeSFX()
-        if(not config.get) then
-            print("Failed to get volume, get function invalid pointer");
-            return;
-        end
-        return tonumber(config.get(9));
-    end
-
-    local function GetVolumeBGM()
-        if(not config.get) then
-            print("Failed to get volume, get function invalid pointer");
-            return;
-        end
-
-        return tonumber(config.get(10));
-    end
-
-    --min:0, max:100, default:100
-    local function SetVolumeSFX(newVol)
-        if(not config.set) then	print("Failed to set volume, set function invalid pointer"); return; end
-        if(not newVol) then print("Failed to set volume, newVol nil"); return; end
-        newVol = tonumber(newVol);
-        config.set(9, math.clamp(newVol, 0, 100));
-    end
-
-    --min:0, max:100, default:100
-    local function SetVolumeBGM(newVol)
-        if(not config.set) then	print("Failed to set volume, set function invalid pointer"); return; end
-        if(not newVol) then print("Failed to set volume, newVol nil"); return; end
-        newVol = tonumber(newVol);
-        config.set(10, math.clamp(newVol, 0, 100));
-    end
-
-    local function InitConfigFunctions()
-        -- Obtain the needed function pointers..
-        local ptr = ashita.memory.find('FFXiMain.dll', 0, '8B0D????????85C974??8B44240450E8????????C383C8FFC3', 0, 0);
-        config.get = ffi.cast('get_config_value_t', ptr);
-        config.set = ffi.cast('set_config_value_t', ashita.memory.find('FFXiMain.dll', 0, '85C974??8B4424088B5424045052E8????????C383C8FFC3', -6, 0));
-        assert(config.get ~= nil, chat.header('config'):append(chat.error('Error: Failed to locate required \'get\' function pointer.')));
-        assert(config.set ~= nil, chat.header('config'):append(chat.error('Error: Failed to locate required \'set\' function pointer.')));
-    end
---endregion
+local loggedIn = nil;
 
 --region packet_in_structs (s->c)
 --0x000A GP_SERV_COMMAND_LOGIN
@@ -210,7 +120,7 @@ ffi.cdef[[
         GP_MYROOM_DANCER_PKT    Dancer;             // PS2: Dancer
         SAVE_CONF_PKT           ConfData;           // PS2: ConfData
         uint32_t                Ex;                 // PS2: (New; did not exist.)
-    } GP_SERV_LOGIN;
+    } GP_SERV_COMMAND_LOGIN;
 ]];
 
 --0x001D GP_SERV_COMMAND_ITEM_SAME (Inventory Update)
@@ -256,31 +166,264 @@ ffi.cdef[[
 ]];
 --endregion
 
-ashita.events.register('packet_in', 'packet_in_cb', function(e)
+---@class settings_default
+---@field music_0_day               number  Music ID during day, non-combat, non-mounted
+---@field music_1_night             number  Music ID during night, non-combat, non-mounted
+---@field music_2_solo              number  Music ID during combat, solo
+---@field music_3_party             number  Music ID during combat, party
+---@field music_4_mount             number  Music ID while mounted
+---@field music_5_dead              number  Music ID while dead.
+---@field music_6_mog_house         number  Music ID while in mog house.
+---@field music_7_fishing           number  Music ID while fishing.
+---@field music_8_override_all      number  Music ID to override all other music IDs with.
+---@field music_zone_overrides      table   ZoneID -> MusicTypeID -> MusicID. Stores specific overrides that have been created.
+---@field is_override_0_day         boolean Whether the zone music should play a specific song during the day.
+---@field is_override_1_night       boolean Whether the zone music should play a specific song during the night.
+---@field is_override_2_solo        boolean Whether the zone music should play a specific song during solo battles.
+---@field is_override_3_party       boolean Whether the zone music should play a specific song during party battles.
+---@field is_override_4_mount       boolean Whether the mount music should play a specific song..
+---@field is_override_5_dead        boolean Whether the death music should play a specific song.
+---@field is_override_6_moghouse    boolean Whether the moghouse music should play a specific song
+---@field is_override_7_fishing     boolean Whether the fishing music should play a specific song.
+---@field is_override_8_all         boolean Whether all types of music should play a specific song.
+---@field is_override_all_oop       boolean Whether the music set to overrideAll others should loop.
+---@field is_override_all_random    boolean Whether the music set to overrideAll others should move to a random selection when finished.
+---@field volume_bgm_config         number  Config setting of BGM Volume (0-100)
+---@field volume_sfx_config         number  Config setting of SFX Volume (0-100)
+local settings_default = T{
+    music_0_day             = -1,
+    music_1_night           = -1,   --TODO: Update this setting to whatever the zone specific ID is.
+    music_2_solo            = -1,   --TODO: Update this setting to whatever the zone specific ID is.
+    music_3_party           = -1,   --TODO: Update this setting to whatever the zone specific ID is.
+    music_4_mount           = -1,   --TODO: Update this setting to whatever the zone specific ID is.
+    music_5_dead            = -1,
+    music_6_mog_house       = -1,
+    music_7_fishing         = -1,
+    music_8_override_all    = -1,
+    music_zone_overrides    = {},
 
-    if(e.id == 0x000A) then --GP_SERV_COMMAND_LOGIN
-        local packet = ffi.cast('GP_SERV_COMMAND_LOGIN*', e.data_modified_raw);
-        packet.MusicNum[0] = settings_current.music_0_day;
-        packet.MusicNum[1] = settings_current.music_1_night;
-        packet.MusicNum[2] = settings_current.music_2_solo;
-        packet.MusicNum[3] = settings_current.music_3_party;
-        packet.MusicNum[4] = settings_current.music_4_mount;
-        if(packet.LoginState == packet.SAVE_LOGIN_STATE_MYROOM) then
-            print("moghouse")
+    is_override_0_day       = false,    --TODO: implement imgui, zone specific overrides
+    is_override_1_night     = false,    --TODO: implement imgui, zone specific overrides
+    is_override_2_solo      = false,    --TODO: implement imgui, zone specific overrides
+    is_override_3_party     = false,    --TODO: implement imgui, zone specific overrides
+    is_override_4_mount     = false,    --TODO: implement imgui
+    is_override_5_dead      = false,    --TODO: implement imgui
+    is_override_6_moghouse  = false,    --TODO: implement imgui
+    is_override_7_fishing   = false,    --TODO: implement imgui
+    is_override_8_all       = false,    --TODO: implement imgui
+    is_override_all_oop     = false,    --TODO: implement, implement imgui
+    is_override_all_random  = false,    --TODO: implement, implement imgui
+
+    volume_bgm_config = 50,         --TODO: implement
+    volume_sfx_config = 50,         --TODO: implement
+};
+
+---@class settings_current: settings_default
+local settings_current = T{
+};
+
+local function SetZoneSpecificMusicOverrideForMusicType(music_id, music_type)
+    local zoneID = manager_party:GetMemberZone(0)
+    if(settings_current.music_zone_overrides[zoneID] and settings_current.music_zone_overrides[zoneID]) then
+        settings_current.music_zone_overrides[zoneID][music_type] = music_id
+    else
+        settings_current.music_zone_overrides[zoneID] = {}
+        settings_current.music_zone_overrides[zoneID][music_type] = music_id
+    end
+end
+
+local function UpdateZoneSpecificMusicOverrides()
+    local zoneID = manager_party:GetMemberZone(0)
+    local music_0_override = settings_current.music_zone_overrides[zoneID] and settings_current.music_zone_overrides[zoneID][0] or nil;
+    local music_1_override = settings_current.music_zone_overrides[zoneID] and settings_current.music_zone_overrides[zoneID][1] or nil;
+    local music_2_override = settings_current.music_zone_overrides[zoneID] and settings_current.music_zone_overrides[zoneID][2] or nil;
+    local music_3_override = settings_current.music_zone_overrides[zoneID] and settings_current.music_zone_overrides[zoneID][3] or nil;
+    if(music_0_override) then
+        settings_current.music_0_day = music_0_override;
+        settings_current.is_override_0_day = true;
+    else
+        settings_current.is_override_0_day = false;
+    end
+    if(music_1_override) then
+        settings_current.music_1_day = music_0_override;
+        settings_current.is_override_1_night = true;
+    else
+        settings_current.is_override_1_night = false;
+    end
+    if(music_2_override) then
+        settings_current.music_2_day = music_0_override;
+        settings_current.is_override_2_solo = true;
+    else
+        settings_current.is_override_2_solo = false;
+    end
+    if(music_3_override) then
+        settings_current.music_3_day = music_0_override;
+        settings_current.is_override_3_party = true;
+    else
+        settings_current.is_override_3_party = false;
+    end
+end
+
+---Sets a specific music types override flag to true, and sets the song ID for that type.
+---@param music_id number The music ID you want to override the current music with.
+---@param music_type number The music type you want to override with a specific song.
+local function SetMusicIDOverrideForMusicType(music_id, music_type)
+    if      music_type == 0 then
+        settings_current.is_override_0_day = true;
+        settings_current.music_0_day = music_id;
+        --TODO: Make this setting zone specific
+    elseif  music_type == 1 then
+        settings_current.is_override_1_night = true;
+        settings_current.music_1_night = music_id;
+        --TODO: Make this setting zone specific
+    elseif  music_type == 2 then
+        settings_current.is_override_2_solo = true;
+        settings_current.music_2_solo = music_id;
+        --TODO: Make this setting zone specific
+    elseif  music_type == 3 then
+        settings_current.is_override_3_party = true;
+        settings_current.music_3_party = music_id;
+        --TODO: Make this setting zone specific
+    elseif  music_type == 4 then
+        settings_current.is_override_4_mount = true;
+        settings_current.music_4_mount = music_id;
+    elseif  music_type == 5 then
+        settings_current.is_override_5_dead = true;
+        settings_current.music_5_dead = music_id;
+    elseif  music_type == 6 then
+        settings_current.is_override_6_moghouse = true;
+        settings_current.music_6_mog_house = music_id;
+    elseif  music_type == 7 then
+        settings_current.is_override_7_fishing = true;
+        settings_current.music_7_fishing = music_id;
+    elseif  music_type == 8 then
+        settings_current.is_override_8_all = true;
+        settings_current.music_8_override_all = music_id;
+        local packet = ffi.cast('GP_SERV_COMMAND_MUSIC*', {});
+        local op_code = 0x05F;
+        packet.id = op_code;
+        packet.size = 0x08;
+        packet.sync = 0x0000;
+        packet.Slot = 0;
+        packet.MusicNum = settings_current.music_8_override_all;
+        manager_packet:AddIncomingPacket(op_code, packet);
+    end
+    if (music_type >= 1 and music_type <= 3) then
+        SetZoneSpecificMusicOverrideForMusicType(music_id, music_type);
+    end
+end
+
+--region config_volume_functions
+    local config = T{
+        get     = nil,
+        set     = nil,
+    };
+
+    --Getters/Setters typedef
+    ffi.cdef[[
+        typedef int32_t (__cdecl* get_config_value_t)(int32_t);
+        typedef int32_t (__cdecl* set_config_value_t)(int32_t, int32_t);
+    ]];
+
+    local function GetVolumeSFX()
+        if(not config.get) then
+            print("Failed to get volume, get function invalid pointer");
+            return;
+        end
+        return tonumber(config.get(9));
+    end
+
+    local function GetVolumeBGM()
+        if(not config.get) then
+            print("Failed to get volume, get function invalid pointer");
+            return;
         end
 
+        return tonumber(config.get(10));
+    end
+
+    --min:0, max:100, default:100
+    local function SetVolumeSFX(newVol)
+        if(not config.set) then	print("Failed to set volume, set function invalid pointer"); return; end
+        if(not newVol) then print("Failed to set volume, newVol nil"); return; end
+        newVol = tonumber(newVol);
+        config.set(9, math.clamp(newVol, 0, 100));
+    end
+
+    --min:0, max:100, default:100
+    local function SetVolumeBGM(newVol)
+        if(not config.set) then	print("Failed to set volume, set function invalid pointer"); return; end
+        if(not newVol) then print("Failed to set volume, newVol nil"); return; end
+        newVol = tonumber(newVol);
+        config.set(10, math.clamp(newVol, 0, 100));
+    end
+
+    local function InitConfigFunctions()
+        -- Obtain the needed function pointers..
+        local ptr = ashita.memory.find('FFXiMain.dll', 0, '8B0D????????85C974??8B44240450E8????????C383C8FFC3', 0, 0);
+        config.get = ffi.cast('get_config_value_t', ptr);
+        config.set = ffi.cast('set_config_value_t', ashita.memory.find('FFXiMain.dll', 0, '85C974??8B4424088B5424045052E8????????C383C8FFC3', -6, 0));
+        assert(config.get ~= nil, chat.header('config'):append(chat.error('Error: Failed to locate required \'get\' function pointer.')));
+        assert(config.set ~= nil, chat.header('config'):append(chat.error('Error: Failed to locate required \'set\' function pointer.')));
+    end
+--endregion
+
+
+ashita.events.register('packet_in', 'packet_in_cb', function(e)
+    if(e.id == 0x000A) then --GP_SERV_COMMAND_LOGIN
+        UpdateZoneSpecificMusicOverrides();
+        local packet = ffi.cast('GP_SERV_COMMAND_LOGIN*', e.data_modified_raw);
+        if(settings_current.is_override_8_all) then
+            packet.MusicNum[0] = settings_current.music_8_override_all;
+            packet.MusicNum[1] = settings_current.music_8_override_all;
+            packet.MusicNum[2] = settings_current.music_8_override_all;
+            packet.MusicNum[3] = settings_current.music_8_override_all;
+            packet.MusicNum[4] = settings_current.music_8_override_all;
+        else
+            if(settings_current.is_override_) then
+                packet.MusicNum[0] = settings_current.music_0_day;
+            end
+            if(settings_current.is_override_) then
+                packet.MusicNum[1] = settings_current.music_1_night;
+            end
+            if(settings_current.is_override_) then
+                packet.MusicNum[2] = settings_current.music_2_solo;
+            end
+            if(settings_current.is_override_) then
+                packet.MusicNum[3] = settings_current.music_3_party;
+            end
+            if(settings_current.is_override_) then
+                packet.MusicNum[4] = settings_current.music_4_mount;
+            end
+            --if(packet.LoginState == ffi.cast('SAVE_LOGIN_STATE', 'SAVE_LOGIN_STATE_MYROOM')) then
+            if(packet.LoginState == ffi.C.SAVE_LOGIN_STATE_MYROOM) then
+                print("moghouse")
+                --SetMusicIDOverrideForMusicType()
+            end
+        end
+        print(ffi.C.SAVE_LOGIN_STATE_MYROOM)
     elseif (e.id == 0x001D) then --GP_SERV_COMMAND_ITEM_SAME (Inventory Update)
 
     elseif (e.id == 0x005F) then --GP_SERV_COMMAND_MUSIC
         local packet = ffi.cast('GP_SERV_COMMAND_MUSIC*', e.data_modified_raw);
-        if     packet.Slot == 0 then packet.MusicNum = settings_current.music_0_day;
-        elseif packet.Slot == 1 then packet.MusicNum = settings_current.music_1_night;
-        elseif packet.Slot == 2 then packet.MusicNum = settings_current.music_2_solo;
-        elseif packet.Slot == 3 then packet.MusicNum = settings_current.music_3_party;
-        elseif packet.Slot == 4 then packet.MusicNum = settings_current.music_4_mount;
-        elseif packet.Slot == 5 then packet.MusicNum = settings_current.music_5_dead;
-        elseif packet.Slot == 6 then packet.MusicNum = settings_current.music_6_mog_house;
-        elseif packet.Slot == 7 then packet.MusicNum = settings_current.music_7_fishing;
+        if  settings_current.is_override_8_all then
+            packet.MusicNum = settings_current.music_8_override_all;
+        elseif packet.Slot == 0 and settings_current.is_override_0_day then
+            packet.MusicNum = settings_current.music_0_day;
+        elseif packet.Slot == 1 and settings_current.is_override_1_night then
+            packet.MusicNum = settings_current.music_1_night;
+        elseif packet.Slot == 2 and settings_current.is_override_2_solo then
+            packet.MusicNum = settings_current.music_2_solo;
+        elseif packet.Slot == 3 and settings_current.is_override_3_party then
+            packet.MusicNum = settings_current.music_3_party;
+        elseif packet.Slot == 4 and settings_current.is_override_4_mount then
+            packet.MusicNum = settings_current.music_4_mount;
+        elseif packet.Slot == 5 and settings_current.is_override_5_dead then
+            packet.MusicNum = settings_current.music_5_dead;
+        elseif packet.Slot == 6 and settings_current.is_override_6_moghouse then
+            packet.MusicNum = settings_current.music_6_mog_house;
+        elseif packet.Slot == 7 and settings_current.is_override_7_fishing then
+            packet.MusicNum = settings_current.music_7_fishing;
         end
     elseif(e.id == 0x0060) then --GP_SERV_MUSICVOLUME
         local packet = ffi.cast('GP_SERV_MUSICVOLUME*', e.data_modified_raw);
@@ -289,7 +432,7 @@ ashita.events.register('packet_in', 'packet_in_cb', function(e)
 end);
 
 ashita.events.register('load', 'load_cb', function ()
-    settings_current = manager_settings.load(settings_default, "ver_1+");
+    settings_current = manager_settings.load(settings_default);
     InitConfigFunctions();
 end);
 
@@ -298,5 +441,4 @@ ashita.events.register('d3d_present', 'present_cb', function ()
     --TODO: IMGUI
 
     --TODO: Check time the initial time the player enters a zone, so we can send zoneDay/zoneNight music for those who want it instead of moghouse.
-    --ffxi_time.get_game_hours()
 end);
