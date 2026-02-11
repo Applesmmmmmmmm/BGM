@@ -167,6 +167,7 @@ ffi.cdef[[
 --endregion
 
 ---@class settings_default
+---@field music_ID_at_slot_type     table   music_type -> {name, music_id, is_overridden}
 ---@field music_0_day               number  Music ID during day, non-combat, non-mounted
 ---@field music_1_night             number  Music ID during night, non-combat, non-mounted
 ---@field music_2_solo              number  Music ID during combat, solo
@@ -191,6 +192,17 @@ ffi.cdef[[
 ---@field volume_bgm_config         number  Config setting of BGM Volume (0-100)
 ---@field volume_sfx_config         number  Config setting of SFX Volume (0-100)
 local settings_default = T{
+    --TODO: implement this table and remove all the music_X_name variables and annotations.
+    music_ID_at_slot_type = {[0] = {name = 'Zone - Day',        music_ID = -1, is_overridden = false},
+                             [1] = {name = 'Zone - Night',      music_ID = -1, is_overridden = false},
+                             [2] = {name = 'Battle - Solo',     music_ID = -1, is_overridden = false},
+                             [3] = {name = 'Battle - Party',    music_ID = -1, is_overridden = false},
+                             [4] = {name = 'Mount',             music_ID = -1, is_overridden = false},
+                             [5] = {name = 'Dead',              music_ID = -1, is_overridden = false},
+                             [6] = {name = 'Mog House',         music_ID = -1, is_overridden = false},
+                             [7] = {name = 'Fishing',           music_ID = -1, is_overridden = false},
+                             [8] = {name = 'Override All',      music_ID = -1, is_overridden = false},
+                        };
     music_0_day             = -1,
     music_1_night           = -1,   --TODO: Update this setting to whatever the zone specific ID is.
     music_2_solo            = -1,   --TODO: Update this setting to whatever the zone specific ID is.
@@ -245,19 +257,19 @@ local function UpdateZoneSpecificMusicOverrides()
         settings_current.is_override_0_day = false;
     end
     if(music_1_override) then
-        settings_current.music_1_day = music_0_override;
+        settings_current.music_1_night = music_0_override;
         settings_current.is_override_1_night = true;
     else
         settings_current.is_override_1_night = false;
     end
     if(music_2_override) then
-        settings_current.music_2_day = music_0_override;
+        settings_current.music_2_solo = music_0_override;
         settings_current.is_override_2_solo = true;
     else
         settings_current.is_override_2_solo = false;
     end
     if(music_3_override) then
-        settings_current.music_3_day = music_0_override;
+        settings_current.music_3_party = music_0_override;
         settings_current.is_override_3_party = true;
     else
         settings_current.is_override_3_party = false;
@@ -268,49 +280,53 @@ end
 ---@param music_id number The music ID you want to override the current music with.
 ---@param music_type number The music type you want to override with a specific song.
 local function SetMusicIDOverrideForMusicType(music_id, music_type)
+    local packet = ffi.cast('GP_SERV_COMMAND_MUSIC*', {});
+    local op_code = 0x05F;
+    packet.id = op_code;
+    packet.size = 0x08;
+    packet.sync = 0x0000;
+    packet.Slot = music_type;
     if      music_type == 0 then
         settings_current.is_override_0_day = true;
         settings_current.music_0_day = music_id;
-        --TODO: Make this setting zone specific
+        packet.MusicNum = settings_current.music_0_day;
     elseif  music_type == 1 then
         settings_current.is_override_1_night = true;
         settings_current.music_1_night = music_id;
-        --TODO: Make this setting zone specific
+        packet.MusicNum = settings_current.music_1_night
     elseif  music_type == 2 then
         settings_current.is_override_2_solo = true;
         settings_current.music_2_solo = music_id;
-        --TODO: Make this setting zone specific
+        packet.MusicNum = settings_current.music_2_solo
     elseif  music_type == 3 then
         settings_current.is_override_3_party = true;
         settings_current.music_3_party = music_id;
-        --TODO: Make this setting zone specific
+        packet.MusicNum = settings_current.music_3_party;
     elseif  music_type == 4 then
         settings_current.is_override_4_mount = true;
         settings_current.music_4_mount = music_id;
+        packet.MusicNum = settings_current.music_4_mount
     elseif  music_type == 5 then
         settings_current.is_override_5_dead = true;
         settings_current.music_5_dead = music_id;
+        packet.MusicNum = settings_current.music_5_dead;
     elseif  music_type == 6 then
         settings_current.is_override_6_moghouse = true;
         settings_current.music_6_mog_house = music_id;
+        packet.MusicNum = settings_current.music_6_mog_house;
     elseif  music_type == 7 then
         settings_current.is_override_7_fishing = true;
         settings_current.music_7_fishing = music_id;
+        packet.MusicNum = settings_current.music_7_fishing;
     elseif  music_type == 8 then
         settings_current.is_override_8_all = true;
         settings_current.music_8_override_all = music_id;
-        local packet = ffi.cast('GP_SERV_COMMAND_MUSIC*', {});
-        local op_code = 0x05F;
-        packet.id = op_code;
-        packet.size = 0x08;
-        packet.sync = 0x0000;
-        packet.Slot = 0;
         packet.MusicNum = settings_current.music_8_override_all;
-        manager_packet:AddIncomingPacket(op_code, packet);
     end
     if (music_type >= 1 and music_type <= 3) then
         SetZoneSpecificMusicOverrideForMusicType(music_id, music_type);
     end
+    manager_packet:AddIncomingPacket(op_code, packet);
 end
 
 --region config_volume_functions
