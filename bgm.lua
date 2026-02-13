@@ -168,29 +168,31 @@ ffi.cdef[[
 
 ---@class settings_default
 ---@field music_ID_at_slot_type     table   music_type -> {name, music_id, is_overridden}
----@field music_0_day               number  Music ID during day, non-combat, non-mounted
----@field music_1_night             number  Music ID during night, non-combat, non-mounted
----@field music_2_solo              number  Music ID during combat, solo
----@field music_3_party             number  Music ID during combat, party
----@field music_4_mount             number  Music ID while mounted
----@field music_5_dead              number  Music ID while dead.
----@field music_6_mog_house         number  Music ID while in mog house.
----@field music_7_fishing           number  Music ID while fishing.
----@field music_8_override_all      number  Music ID to override all other music IDs with.
+---music_0_day               number  Music ID during day, non-combat, non-mounted
+---music_1_night             number  Music ID during night, non-combat, non-mounted
+---music_2_solo              number  Music ID during combat, solo
+---music_3_party             number  Music ID during combat, party
+---music_4_mount             number  Music ID while mounted
+---music_5_dead              number  Music ID while dead.
+---music_6_mog_house         number  Music ID while in mog house.
+---music_7_fishing           number  Music ID while fishing.
+---music_8_override_all      number  Music ID to override all other music IDs with.
 ---@field music_zone_overrides      table   ZoneID -> MusicTypeID -> MusicID. Stores specific overrides that have been created.
----@field is_override_0_day         boolean Whether the zone music should play a specific song during the day.
----@field is_override_1_night       boolean Whether the zone music should play a specific song during the night.
----@field is_override_2_solo        boolean Whether the zone music should play a specific song during solo battles.
----@field is_override_3_party       boolean Whether the zone music should play a specific song during party battles.
----@field is_override_4_mount       boolean Whether the mount music should play a specific song..
----@field is_override_5_dead        boolean Whether the death music should play a specific song.
----@field is_override_6_moghouse    boolean Whether the moghouse music should play a specific song
----@field is_override_7_fishing     boolean Whether the fishing music should play a specific song.
----@field is_override_8_all         boolean Whether all types of music should play a specific song.
----@field is_override_all_oop       boolean Whether the music set to overrideAll others should loop.
+---is_override_0_day         boolean Whether the zone music should play a specific song during the day.
+---is_override_1_night       boolean Whether the zone music should play a specific song during the night.
+---is_override_2_solo        boolean Whether the zone music should play a specific song during solo battles.
+---is_override_3_party       boolean Whether the zone music should play a specific song during party battles.
+---is_override_4_mount       boolean Whether the mount music should play a specific song..
+---is_override_5_dead        boolean Whether the death music should play a specific song.
+---is_override_6_moghouse    boolean Whether the moghouse music should play a specific song
+---is_override_7_fishing     boolean Whether the fishing music should play a specific song.
+---is_override_8_all         boolean Whether all types of music should play a specific song.
+---@field is_override_all_loop      boolean Whether the music set to overrideAll others should loop.
 ---@field is_override_all_random    boolean Whether the music set to overrideAll others should move to a random selection when finished.
----@field volume_bgm_config         number  Config setting of BGM Volume (0-100)
----@field volume_sfx_config         number  Config setting of SFX Volume (0-100)
+---@field volume_bgm_config   number  Config setting of BGM Volume (0-100)
+---@field volume_sfx_config   number  Config setting of SFX Volume (0-100)
+---@field imgui_is_open             boolean Determines whether the imgui window should show.
+---@field imgui_is_hidden           boolean Determines if the imgui window should be hidden, in situations like the map being open, even if [imgui_is_open](lua://settings_default.imgui_is_open) is true.
 local settings_default = T{
     --TODO: implement this table and remove all the music_X_name variables and annotations.
     music_ID_at_slot_type = {[0] = {name = 'Zone - Day',        music_ID = -1, is_overridden = false},
@@ -203,31 +205,34 @@ local settings_default = T{
                              [7] = {name = 'Fishing',           music_ID = -1, is_overridden = false},
                              [8] = {name = 'Override All',      music_ID = -1, is_overridden = false},
                         };
-    music_0_day             = -1,
-    music_1_night           = -1,   --TODO: Update this setting to whatever the zone specific ID is.
-    music_2_solo            = -1,   --TODO: Update this setting to whatever the zone specific ID is.
-    music_3_party           = -1,   --TODO: Update this setting to whatever the zone specific ID is.
-    music_4_mount           = -1,   --TODO: Update this setting to whatever the zone specific ID is.
-    music_5_dead            = -1,
-    music_6_mog_house       = -1,
-    music_7_fishing         = -1,
-    music_8_override_all    = -1,
+    --music_0_day             = -1,
+    --music_1_night           = -1,   --TODO: Update this setting to whatever the zone specific ID is.
+    --music_2_solo            = -1,   --TODO: Update this setting to whatever the zone specific ID is.
+    --music_3_party           = -1,   --TODO: Update this setting to whatever the zone specific ID is.
+    --music_4_mount           = -1,   --TODO: Update this setting to whatever the zone specific ID is.
+    --music_5_dead            = -1,
+    --music_6_mog_house       = -1,
+    --music_7_fishing         = -1,
+    --music_8_override_all    = -1,
     music_zone_overrides    = {},
 
-    is_override_0_day       = false,    --TODO: implement imgui, zone specific overrides
-    is_override_1_night     = false,    --TODO: implement imgui, zone specific overrides
-    is_override_2_solo      = false,    --TODO: implement imgui, zone specific overrides
-    is_override_3_party     = false,    --TODO: implement imgui, zone specific overrides
-    is_override_4_mount     = false,    --TODO: implement imgui
-    is_override_5_dead      = false,    --TODO: implement imgui
-    is_override_6_moghouse  = false,    --TODO: implement imgui
-    is_override_7_fishing   = false,    --TODO: implement imgui
-    is_override_8_all       = false,    --TODO: implement imgui
+    --is_override_0_day       = false,    --TODO: implement imgui, zone specific overrides
+    --is_override_1_night     = false,    --TODO: implement imgui, zone specific overrides
+    --is_override_2_solo      = false,    --TODO: implement imgui, zone specific overrides
+    --is_override_3_party     = false,    --TODO: implement imgui, zone specific overrides
+    --is_override_4_mount     = false,    --TODO: implement imgui
+    --is_override_5_dead      = false,    --TODO: implement imgui
+    --is_override_6_moghouse  = false,    --TODO: implement imgui
+    --is_override_7_fishing   = false,    --TODO: implement imgui
+    --is_override_8_all       = false,    --TODO: implement imgui
     is_override_all_oop     = false,    --TODO: implement, implement imgui
     is_override_all_random  = false,    --TODO: implement, implement imgui
 
     volume_bgm_config = 50,         --TODO: implement
     volume_sfx_config = 50,         --TODO: implement
+
+    imgui_is_open = false,
+    imgui_is_hidden = false,
 };
 
 ---@class settings_current: settings_default
@@ -322,11 +327,13 @@ local function SetMusicIDOverrideForMusicType(music_id, music_type)
         settings_current.is_override_8_all = true;
         settings_current.music_8_override_all = music_id;
         packet.MusicNum = settings_current.music_8_override_all;
+        manager_packet:AddIncomingPacket(op_code, packet);
     end
     if (music_type >= 1 and music_type <= 3) then
         SetZoneSpecificMusicOverrideForMusicType(music_id, music_type);
     end
-    manager_packet:AddIncomingPacket(op_code, packet);
+    --TODO: Check if we're currently playing the music_type that was requested to change, and if so then send the packet to update our current song. Otherwise, don't since we don't want to force the music_type to something different unless it's the global override.
+    --manager_packet:AddIncomingPacket(op_code, packet);
 end
 
 --region config_volume_functions
@@ -417,28 +424,36 @@ ashita.events.register('packet_in', 'packet_in_cb', function(e)
                 --SetMusicIDOverrideForMusicType()
             end
         end
-        print(ffi.C.SAVE_LOGIN_STATE_MYROOM)
     elseif (e.id == 0x001D) then --GP_SERV_COMMAND_ITEM_SAME (Inventory Update)
 
     elseif (e.id == 0x005F) then --GP_SERV_COMMAND_MUSIC
         local packet = ffi.cast('GP_SERV_COMMAND_MUSIC*', e.data_modified_raw);
         if  settings_current.is_override_8_all then
+            print("override all")
             packet.MusicNum = settings_current.music_8_override_all;
         elseif packet.Slot == 0 and settings_current.is_override_0_day then
+            print("zone day music req")
             packet.MusicNum = settings_current.music_0_day;
         elseif packet.Slot == 1 and settings_current.is_override_1_night then
+            print("zone night music req")
             packet.MusicNum = settings_current.music_1_night;
         elseif packet.Slot == 2 and settings_current.is_override_2_solo then
+            print("battle solo req")
             packet.MusicNum = settings_current.music_2_solo;
         elseif packet.Slot == 3 and settings_current.is_override_3_party then
+            print("battle party music req")
             packet.MusicNum = settings_current.music_3_party;
         elseif packet.Slot == 4 and settings_current.is_override_4_mount then
+            print("mount music req")
             packet.MusicNum = settings_current.music_4_mount;
         elseif packet.Slot == 5 and settings_current.is_override_5_dead then
+            print("dead music req")
             packet.MusicNum = settings_current.music_5_dead;
         elseif packet.Slot == 6 and settings_current.is_override_6_moghouse then
+            print("mog house music req")
             packet.MusicNum = settings_current.music_6_mog_house;
         elseif packet.Slot == 7 and settings_current.is_override_7_fishing then
+            print("fishing music req")
             packet.MusicNum = settings_current.music_7_fishing;
         end
     elseif(e.id == 0x0060) then --GP_SERV_MUSICVOLUME
@@ -447,14 +462,82 @@ ashita.events.register('packet_in', 'packet_in_cb', function(e)
     end
 end);
 
-ashita.events.register('load', 'load_cb', function ()
-    settings_current = manager_settings.load(settings_default);
-    InitConfigFunctions();
+ashita.events.register('command', 'command_cb', function(e)
+    local args = e.command:args();
+
+    if (args[1]:lower() == "/bgm") then
+		settings_current.imgui_is_open = not settings_current.imgui_is_open;
+        print("toggle")
+        return true;
+    else
+        return false;
+    end;
 end);
 
+ashita.events.register('load', 'load_cb', function ()
+    InitConfigFunctions();
+    local sfx = GetVolumeSFX();
+    local bgm = GetVolumeBGM();
+    settings_default.imgui_volume_sfx_config = sfx and sfx or 50;
+    settings_default.imgui_volume_bgm_config = bgm and bgm or 50;
+    settings_current = manager_settings.load(settings_default);
+    SetVolumeSFX(settings_current.volume_sfx_config);
+    SetVolumeBGM(settings_current.volume_bgm_config);
+end);
+
+ashita.events.register('unload', 'unload_cb', function ()
+    manager_settings.save();
+end);
+
+local save_after_timer_end = false;
+local time_until_save_initial = 2;
+local time_until_save_current = os.clock();
 
 ashita.events.register('d3d_present', 'present_cb', function ()
-    --TODO: IMGUI
+    if(save_after_timer_end and os.clock() > time_until_save_current) then
+        manager_settings.save();
+        save_after_timer_end = false;
+    end
 
-    --TODO: Check time the initial time the player enters a zone, so we can send zoneDay/zoneNight music for those who want it instead of moghouse.
+    if(not settings_current.imgui_is_open or settings_current.imgui_is_hidden) then
+        return;
+    end
+
+    --TODO: IMGUI
+    local imgui_is_open = {settings_current.imgui_is_open}
+    imgui:SetNextWindowSize({0,0}, {500, 500});
+    imgui.Begin('BGM', imgui_is_open, 0);
+    local settings_current_save_outdated = false;
+
+    --region volume_sliders
+    local volume_sfx = {settings_current.volume_sfx_config};
+    local volume_bgm = {settings_current.volume_bgm_config};
+    imgui.SliderInt('Volume (SFX)', volume_sfx, 0, 100);
+    local is_active_slider_volume_sfx = imgui.IsItemActive();
+    imgui.SliderInt('Volume (BGM)', volume_bgm, 0, 100);
+    local is_active_slider_volume_bgm = imgui.IsItemActive();
+    if(volume_sfx[1] ~= settings_current.volume_sfx_config) then
+        settings_current.volume_sfx_config = volume_sfx[1]
+        SetVolumeSFX(settings_current.volume_sfx_config);
+        settings_current_save_outdated = true;
+    end
+    if(volume_bgm[1] ~= settings_current.volume_bgm_config) then
+        settings_current.volume_bgm_config = volume_bgm[1]
+        SetVolumeBGM(settings_current.volume_bgm_config)
+        settings_current_save_outdated = true;
+    end
+
+    --Check if the UI is active at all, and if so keep the save flag dirty.
+    if(is_active_slider_volume_bgm or is_active_slider_volume_sfx) then
+        settings_current_save_outdated = true;
+    end
+
+    if(settings_current_save_outdated) then
+        save_after_timer_end = true;
+        time_until_save_current = os.clock() + time_until_save_initial;
+    end
+    --endregion
+    imgui.End();
+    settings_current.imgui_is_open = imgui_is_open[1];
+    --TODO (Maybe): Check time the initial time the player enters a zone, so we can send zoneDay/zoneNight music for those who want it instead of moghouse.
 end);
