@@ -173,8 +173,8 @@ ffi.cdef[[
 ---@field music_zone_overrides      table   ZoneID -> MusicTypeID -> MusicID. Stores specific overrides that have been created.
 ---@field is_override_all_loop      boolean Whether the music set to overrideAll others should loop.
 ---@field is_override_all_random    boolean Whether the music set to overrideAll others should move to a random selection when finished.
----@field volume_bgm_config   number  Config setting of BGM Volume (0-100)
----@field volume_sfx_config   number  Config setting of SFX Volume (0-100)
+---@field volume_bgm_config         number  Config setting of BGM Volume (0-100)
+---@field volume_sfx_config         number  Config setting of SFX Volume (0-100)
 ---@field imgui_is_open             boolean Determines whether the imgui window should show.
 ---@field imgui_is_hidden           boolean Determines if the imgui window should be hidden, in situations like the map being open, even if [imgui_is_open](lua://settings_default.imgui_is_open) is true.
 local settings_default = T{
